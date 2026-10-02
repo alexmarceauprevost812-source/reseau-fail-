@@ -1,46 +1,79 @@
 # Linux Garde
 
-Premier prototype d'audit local Linux, en français, avec Python 3 et sans bibliothèque externe. Il analyse la machine sur laquelle il est lancé : ports en écoute, indices de pare-feu, quelques paramètres du noyau, permissions de `/etc/shadow` et configuration SSH effective lorsqu'elle est accessible.
+Outil Linux en français pour auditer ses appareils, examiner des services réseau et comprendre des failles dans un laboratoire intégré.
 
-## Utilisation
+## Lancement
+
+Python 3 suffit pour l'audit local et le laboratoire. Les scans réseau nécessitent Nmap installé avec le gestionnaire de paquets de votre distribution. Conserver `audit.py` et `laboratoire.py` dans le même dossier.
 
 ```sh
+git clone --branch linux-garde-menu https://github.com/alexmarceauprevost812-source/reseau-fail-.git
+cd reseau-fail-
 python3 audit.py
-python3 audit.py --audit
-python3 audit.py --json rapport.json
 ```
 
-Commencer sans sudo. Certains contrôles resteront inconnus faute de droits ou d'outils système. Le rapport JSON est créé avec des permissions privées et ne remplace pas un fichier existant.
+Pour actualiser une copie existante :
 
-## Limites
+```sh
+git switch linux-garde-menu
+git pull --ff-only
+python3 audit.py
+```
 
-Le menu propose un scan réseau avec Nmap : découverte des appareils et 1 000 ports TCP les plus fréquents, sur un réseau IPv4 de 256 adresses maximum. Nmap doit être installé séparément. Les appareils invisibles à la découverte, les ports UDP et les autres ports TCP peuvent être manqués. Ce scan ne constitue pas un audit complet de vulnérabilités. Le programme ne teste aucune exploitation et ne modifie aucune configuration. Il propose des conseils à examiner avant application. Il ne détecte pas les CVE, ne vérifie pas les mises à jour et ne garantit pas une sécurité complète. Une configuration SSH conditionnelle (`Match`) peut différer des valeurs globales affichées. La présence d'un pare-feu ne valide pas ses règles.
-
-Les rapports contiennent des informations sur la machine et les services : examiner leur contenu avant de les partager.
+Commencer sans sudo. La bannière est cyan sur un terminal compatible ; `NO_COLOR=1` désactive la couleur.
 
 ## Menu
 
-Lancer `python3 audit.py`, puis choisir : 1 pour un audit local, 2 pour un rapport JSON, 3 pour un scan réseau autorisé, 4 pour l’aide, ou 0 pour quitter. Le scan réseau demande une plage CIDR et une confirmation d’autorisation.
+| Option | Fonction |
+| --- | --- |
+| 1 | Audit de l'ordinateur Linux |
+| 2 | Audit local avec rapport JSON |
+| 3 | Découverte et scan réseau, 256 adresses IPv4 maximum |
+| 4 | Aide |
+| 5 | Mode courant : services, versions et configurations d'un appareil |
+| 6 | Tests ciblés supplémentaires SMB MS17-010 et TLS |
+| 7 | Mode laboratoire : exercices, preuves, corrections et retests |
+| 0 | Quitter |
 
-## Analyse détaillée : option 5
+L'audit local vérifie les ports en écoute, quelques paramètres du noyau, les permissions de `/etc/shadow` sans lire son contenu, la présence d'un pare-feu et la configuration SSH accessible. La présence d'un pare-feu ne valide pas ses règles. Les règles SSH `Match` peuvent différer des valeurs affichées.
 
-Saisir une adresse IPv4 privée appartenant à un appareil autorisé. Choisir les 1 000 ports TCP fréquents ou les 65 535 ports TCP. Le programme identifie les services avec des sondes de version légères et lance une liste explicite de contrôles Nmap : `ssh2-enum-algos`, `ssl-cert`, `http-security-headers`, `smb2-security-mode`. Ces sondes établissent des connexions et peuvent apparaître dans les journaux des appareils. Le débit est limité et les délais peuvent laisser des ports non vérifiés.
+## Mode courant et tests ciblés
 
-Un rapport JSON facultatif conserve la commande, les résultats, les erreurs et des conseils généraux. Il ne constitue pas une détection exhaustive de CVE, une preuve d'exploitation ou un audit radio Wi-Fi. Nmap doit être installé. Aucune base de vulnérabilités distante n'est interrogée. Les adresses saisies doivent correspondre à tes appareils locaux ; une adresse privée seule ne prouve pas leur propriété ni leur localisation.
+L'option 5 accepte une adresse IPv4 privée et propose les 1 000 ports TCP fréquents ou les 65 535 ports TCP. Nmap identifie les services avec des sondes légères et exécute les contrôles applicables :
 
-Documentation des contrôles : https://nmap.org/nsedoc/scripts/
+- algorithmes SSH et certificat TLS ;
+- en-têtes de sécurité HTTP ;
+- signature SMB et présence de SMBv1 ;
+- connexion FTP anonyme, sans lister les fichiers (`ftp-anon.maxlist=0`).
 
-Une bannière avec un bouclier apparaît au lancement du menu. Elle utilise le cyan dans les terminaux compatibles ; définir `NO_COLOR=1` désactive la couleur.
+L'option 6 ajoute `smb-vuln-ms17-010`, qui recherche les indices de cette faille sans exécuter EternalBlue, et `ssl-enum-ciphers`, qui effectue plusieurs négociations TLS. Ces tests actifs peuvent charger les services et apparaître dans leurs journaux. La limitation du débit du scan de ports ne limite pas toutes les connexions des scripts NSE.
 
-## Tests ciblés : option 6
+Les résultats distinguent service accessible, accès anonyme confirmé, faiblesse possible, vulnérabilité signalée par Nmap, résultat à examiner et contrôle non vérifié. Un accès anonyme peut être intentionnel ; son observation ne démontre pas automatiquement une faille. Une sortie absente ou interrompue ne signifie jamais « sécurisé ». Le rapport JSON facultatif conserve aussi le XML brut, la commande, les erreurs et les conseils. Refaire le même profil après correction pour examiner l'évolution des résultats.
 
-Cette option reprend la sélection des ports de l’option 5 et ajoute deux tests actifs :
+Les délais sont limités : 30 secondes par script et 20 minutes par appareil. Même le profil de 65 535 ports peut rester incomplet. Les scripts ne couvrent pas toutes les CVE ; UDP, la sécurité radio Wi-Fi, le firmware du routeur, les permissions internes et les mises à jour ne sont pas audités automatiquement. Une adresse privée seule ne prouve pas qu'un appareil est local ou autorisé.
 
-- `smb-vuln-ms17-010` recherche des indices de l’absence du correctif MS17-010 sur SMBv1, sans exécuter l’exploitation EternalBlue. Si le test signale une vulnérabilité, appliquer les correctifs Windows et désactiver SMBv1.
-- `ssl-enum-ciphers` négocie plusieurs connexions TLS pour examiner les protocoles et chiffrements proposés. Ces connexions peuvent charger le service. Examiner les avertissements, puis actualiser le service et sa configuration TLS.
+## Laboratoire intégré
 
-Les résultats bruts sont conservés dans le rapport JSON facultatif. Un script absent, en erreur, qui expire ou ne produit aucun résultat ne confirme pas l’absence de failles. Le délai des scripts reste limité à 30 secondes : les résultats peuvent être partiels. Les scripts ne sont pas tous exécutés si leurs conditions de service ne correspondent pas. Ce module ne teste pas toutes les vulnérabilités, ne réalise pas de déni de service et n’exécute pas de code sur la cible.
+L'option 7 exécute deux exercices jetables avec des comptes fictifs en mémoire, sans ouvrir de serveur ni contacter un appareil :
 
-Références :
+1. Une véritable requête SQLite volontairement vulnérable permet un contournement de connexion. Le même test est rejoué avec une requête paramétrée ; une connexion valide et un mauvais mot de passe sont également contrôlés.
+2. Cinq essais prédéfinis sur un compte fictif illustrent la découverte d'un mot de passe sans limitation. La même série est rejouée avec un blocage après trois échecs.
+
+Le résultat présente la preuve avant correction, la correction et le retest. Les conclusions concernent exclusivement ce laboratoire. Il ne s'agit pas d'un test d'exploitation de vos appareils ni d'un module de force brute distante. Le stockage de mots de passe en clair dans la base fictive et le verrouillage permanent de démonstration ne sont pas des modèles d'authentification à déployer.
+
+Les rapports sont créés avec des permissions privées et aucun fichier existant n'est écrasé. Examiner leur contenu avant partage. Aucun réglage réel n'est corrigé automatiquement.
+
+## Vérification du code
+
+```sh
+python3 -m unittest -v test_audit.py
+```
+
+Les exercices du laboratoire sont réellement exécutés. L'interprétation des résultats réseau est testée avec des fixtures XML ; cela ne remplace pas une validation Nmap sur vos appareils.
+
+## Documentation Nmap
+
 - https://nmap.org/nsedoc/scripts/smb-vuln-ms17-010.html
 - https://nmap.org/nsedoc/scripts/ssl-enum-ciphers.html
+- https://nmap.org/nsedoc/scripts/ftp-anon.html
+- https://nmap.org/nsedoc/scripts/smb-protocols.html
