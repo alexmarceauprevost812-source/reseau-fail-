@@ -31,3 +31,16 @@ Un rapport JSON facultatif conserve la commande, les résultats, les erreurs et 
 Documentation des contrôles : https://nmap.org/nsedoc/scripts/
 
 Une bannière avec un bouclier apparaît au lancement du menu. Elle utilise le cyan dans les terminaux compatibles ; définir `NO_COLOR=1` désactive la couleur.
+
+## Tests ciblés : option 6
+
+Cette option reprend la sélection des ports de l’option 5 et ajoute deux tests actifs :
+
+- `smb-vuln-ms17-010` recherche des indices de l’absence du correctif MS17-010 sur SMBv1, sans exécuter l’exploitation EternalBlue. Si le test signale une vulnérabilité, appliquer les correctifs Windows et désactiver SMBv1.
+- `ssl-enum-ciphers` négocie plusieurs connexions TLS pour examiner les protocoles et chiffrements proposés. Ces connexions peuvent charger le service. Examiner les avertissements, puis actualiser le service et sa configuration TLS.
+
+Les résultats bruts sont conservés dans le rapport JSON facultatif. Un script absent, en erreur, qui expire ou ne produit aucun résultat ne confirme pas l’absence de failles. Le délai des scripts reste limité à 30 secondes : les résultats peuvent être partiels. Les scripts ne sont pas tous exécutés si leurs conditions de service ne correspondent pas. Ce module ne teste pas toutes les vulnérabilités, ne réalise pas de déni de service et n’exécute pas de code sur la cible.
+
+Références :
+- https://nmap.org/nsedoc/scripts/smb-vuln-ms17-010.html
+- https://nmap.org/nsedoc/scripts/ssl-enum-ciphers.html
