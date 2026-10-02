@@ -149,7 +149,7 @@ def network_scan():
 
 
 
-def device_audit():
+def device_audit(vulnerability_tests=False):
     if not shutil.which("nmap"):
         print("Nmap est absent. Installe le paquet nmap de ta distribution.")
         return
@@ -168,8 +168,12 @@ def device_audit():
         print("Profil invalide ; analyse annulée.")
         return
     ports = ["--top-ports", "1000"] if choice == "1" else ["-p", "1-65535"]
+    scripts = "ssh2-enum-algos,ssl-cert,http-security-headers,smb2-security-mode"
+    if vulnerability_tests:
+        scripts += ",smb-vuln-ms17-010,ssl-enum-ciphers"
+        print("Tests actifs : détection SMB MS17-010 et négociations TLS répétées. Ils peuvent charger les services.")
     args = ["nmap", "-sT", "-sV", "--version-light", "-Pn", "-n", *ports,
-            "--script", "ssh2-enum-algos,ssl-cert,http-security-headers,smb2-security-mode",
+            "--script", scripts,
             "--script-timeout", "30s", "--max-rate", "100", "--max-retries", "1",
             "--host-timeout", "20m", str(address)]
     print("Analyse en cours ; jusqu'à 20 minutes. Ctrl+C pour interrompre.")
@@ -185,10 +189,14 @@ def device_audit():
     if result.stderr:
         print(result.stderr)
     print("Contrôles : algorithmes SSH, certificat TLS, en-têtes HTTP et signature SMB.")
+    if vulnerability_tests:
+        print("Si MS17-010 est signalée : appliquer les correctifs Windows et désactiver SMBv1.")
+        print("Si des protocoles/chiffrements TLS faibles sont signalés : mettre à jour le service et sa configuration TLS.")
+        print("Un contrôle absent, en erreur ou interrompu ne signifie pas que le service est sécurisé.")
     print("Les résultats demandent une interprétation. Une version détectée ne confirme pas une CVE.")
     print("UDP et sécurité radio Wi-Fi ne sont pas analysés. Les délais peuvent rendre le scan incomplet.")
     report = dict(date=datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                  cible=str(address), profil=choice, commande=args, code_retour=result.returncode,
+                  cible=str(address), profil=choice, tests_vulnerabilites=vulnerability_tests, commande=args, code_retour=result.returncode,
                   sortie=result.stdout, erreurs=result.stderr,
                   conseils=["Mettre à jour les services et le firmware avec les versions du fabricant.",
                             "Désactiver les services inutiles et limiter les accès avec le pare-feu.",
@@ -207,7 +215,7 @@ def device_audit():
 def menu():
     try:
         while True:
-            print("\n+----------------------------------------+\n|              LINUX GARDE               |\n+----------------------------------------+\n1. Audit de cet ordinateur\n2. Audit local avec rapport JSON\n3. Scanner un réseau autorisé\n4. Aide\n5. Analyse détaillée de mon appareil réseau\n0. Quitter")
+            print("\n+----------------------------------------+\n|              LINUX GARDE               |\n+----------------------------------------+\n1. Audit de cet ordinateur\n2. Audit local avec rapport JSON\n3. Scanner un réseau autorisé\n4. Aide\n5. Analyse détaillée de mon appareil réseau\n6. Tests ciblés de vulnérabilités (SMB / TLS)\n0. Quitter")
             choice = input("Ton choix : ").strip()
             if choice == "0":
                 return
@@ -224,10 +232,12 @@ def menu():
                 network_scan()
             elif choice == "5":
                 device_audit()
+            elif choice == "6":
+                device_audit(vulnerability_tests=True)
             elif choice == "4":
                 print("L'audit local lit les réglages de cet ordinateur.\nLe scan réseau utilise Nmap sur un réseau IPv4 autorisé de 256 adresses maximum.\nAucune correction automatique ni exploitation de faille.\nLes rapports peuvent contenir des informations privées sur les machines.")
             else:
-                print("Choisis 0, 1, 2, 3, 4 ou 5.")
+                print("Choisis 0, 1, 2, 3, 4, 5 ou 6.")
     except (EOFError, KeyboardInterrupt):
         print("\nOpération interrompue. Menu fermé.")
 
